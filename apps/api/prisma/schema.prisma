@@ -1,0 +1,1051 @@
+// AI-Powered Clinical Decision Support and Drug Recommendation System
+// Prisma schema — PostgreSQL is the sole system of record.
+// Educational prototype. Not clinically validated. Synthetic data only.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm, uuidOssp(map: "uuid-ossp")]
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ──────────────────────────────────────────────────────────────────────────
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  LOCKED
+  INACTIVE
+}
+
+enum RoleName {
+  PHYSICIAN
+  NURSE
+  SYSTEM_ADMIN
+}
+
+enum SexAtBirth {
+  MALE
+  FEMALE
+  INTERSEX
+  UNKNOWN
+}
+
+enum ConsentStatus {
+  GRANTED
+  DECLINED
+  WITHDRAWN
+  PENDING
+}
+
+enum EncounterStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum EncounterType {
+  OUTPATIENT
+  INPATIENT
+  TELEHEALTH
+  EMERGENCY
+}
+
+enum AllergyType {
+  DRUG
+  FOOD
+  ENVIRONMENTAL
+  OTHER
+}
+
+enum AllergySeverity {
+  MILD
+  MODERATE
+  SEVERE
+}
+
+enum AllergyStatus {
+  ACTIVE
+  RESOLVED
+  ENTERED_IN_ERROR
+}
+
+enum NlpStatus {
+  PENDING
+  PROCESSED
+  APPROVED
+  CORRECTED
+  REJECTED
+  FAILED
+}
+
+enum EntityCategory {
+  SYMPTOM
+  CONDITION
+  OBSERVATION
+  MEDICATION
+  ALLERGY
+  PROCEDURE
+  LAB_CONCEPT
+  ANATOMICAL_TERM
+  DURATION
+  FAMILY_HISTORY
+}
+
+enum DiagnosticProvider {
+  OPENROUTER
+  LOCAL_DEMO
+}
+
+enum DiagnosticRunStatus {
+  PENDING
+  COMPLETE
+  INSUFFICIENT_DATA
+  MODEL_REFUSAL
+  FAILED
+}
+
+enum ValidationStatus {
+  VALID
+  INVALID_SCHEMA
+  REJECTED_UNSAFE
+  NOT_APPLICABLE
+}
+
+enum DiagnosisSource {
+  AI_SUGGESTED
+  MANUAL
+}
+
+enum DiagnosisStatus {
+  SUGGESTED
+  CONFIRMED
+  REJECTED
+  OVERRIDDEN
+}
+
+enum Urgency {
+  ROUTINE
+  URGENT
+  EMERGENCY
+}
+
+enum TreatmentPlanStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  VALIDATED
+  FINALIZED
+  CANCELLED
+}
+
+enum SafetySeverity {
+  MINOR
+  MODERATE
+  MAJOR
+  CONTRAINDICATED
+}
+
+enum SafetyCheckType {
+  DRUG_DRUG
+  DRUG_ALLERGY
+  INGREDIENT_ALLERGY
+  DRUG_CONDITION
+  DUPLICATE_THERAPY
+  DOSE_RANGE
+  RENAL_ADJUSTMENT
+  HEPATIC_ADJUSTMENT
+  AGE_WARNING
+  PREGNANCY_WARNING
+}
+
+enum ReportType {
+  FULL_CLINICAL
+  DIAGNOSTIC
+  TREATMENT_SUMMARY
+  PRESCRIPTION_HISTORY
+}
+
+enum ReportStatus {
+  DRAFT
+  APPROVED
+}
+
+enum ExportFormat {
+  PDF
+  JSON
+  FHIR_JSON
+  CSV
+  XML
+}
+
+enum AuditSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum ImportStatus {
+  PREVIEW
+  VALIDATED
+  COMMITTED
+  ROLLED_BACK
+  FAILED
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// SECURITY
+// ──────────────────────────────────────────────────────────────────────────
+
+model User {
+  id                     String    @id @default(uuid()) @db.Uuid
+  fullName               String
+  username               String    @unique
+  email                  String    @unique
+  passwordHash           String
+  licenseNumber          String?
+  status                 UserStatus @default(PENDING)
+  failedLoginCount       Int       @default(0)
+  lockedUntil            DateTime?
+  lastLoginAt            DateTime?
+  mfaEnabled             Boolean   @default(false)
+  encryptedMfaSecret     String?
+  passwordChangeRequired Boolean   @default(true)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  version                Int       @default(1)
+
+  roles              UserRole[]
+  refreshTokens      RefreshToken[]
+  recoveryCodes      MfaRecoveryCode[]
+  resetTokens        PasswordResetToken[]
+  loginAttempts      LoginAttempt[]
+  auditEntries       AuditLog[]            @relation("ActorAudit")
+  encountersAssigned Encounter[]           @relation("AssignedPhysician")
+  encountersRecorded Encounter[]           @relation("RecordedBy")
+
+  @@index([email])
+  @@index([username])
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        RoleName @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique // e.g. "patient:write", "prescription:finalize"
+  description String?
+
+  roles RolePermission[]
+}
+
+model UserRole {
+  userId String @db.Uuid
+  roleId String @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String @db.Uuid
+  permissionId String @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  tokenHash   String    @unique
+  familyId    String    @db.Uuid
+  replacedBy  String?   @db.Uuid
+  revokedAt   DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  createdByIp String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+model MfaRecoveryCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model LoginAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid
+  usernameTried String?
+  success    Boolean
+  ipAddress  String?
+  userAgent  String?
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedByUserId String? @db.Uuid
+}
+
+model AuditLog {
+  id               String        @id @default(uuid()) @db.Uuid
+  actorUserId      String?       @db.Uuid
+  patientId        String?       @db.Uuid
+  action           String
+  resourceType     String
+  resourceId       String?
+  success          Boolean       @default(true)
+  severity         AuditSeverity @default(INFO)
+  redactedMetadata Json?
+  requestId        String?
+  deviceId         String?
+  timestamp        DateTime      @default(now())
+  previousHash     String?
+  entryHash        String
+
+  actor   User?    @relation("ActorAudit", fields: [actorUserId], references: [id], onDelete: SetNull)
+  patient Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp])
+  @@index([actorUserId])
+  @@index([patientId])
+  @@index([action])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// PATIENTS
+// ──────────────────────────────────────────────────────────────────────────
+
+model Patient {
+  id                  String        @id @default(uuid()) @db.Uuid
+  medicalRecordNumber String        @unique
+  firstName           String
+  middleName          String?
+  lastName            String
+  normalizedFullName  String
+  dateOfBirth         DateTime      @db.Date
+  sexAtBirth          SexAtBirth
+  genderIdentity      String?
+  preferredLanguage   String?
+  phone               String?
+  email               String?
+  address             String?
+  emergencyContact    String?
+  active              Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  version             Int           @default(1)
+
+  consents          PatientConsent[]
+  encounters        Encounter[]
+  vitals            VitalMeasurement[]
+  medicalHistories   MedicalHistory[]
+  allergies         Allergy[]
+  labResults        LaboratoryResult[]
+  clinicalNotes     ClinicalNote[]
+  diagnosticRuns    DiagnosticRun[]
+  diagnoses         Diagnosis[]
+  treatmentPlans    TreatmentPlan[]
+  prescriptions     Prescription[]
+  reports           ClinicalReport[]
+  followUpTasks     FollowUpTask[]
+  auditEntries      AuditLog[]
+
+  @@index([normalizedFullName])
+  @@index([dateOfBirth])
+}
+
+model PatientConsent {
+  id        String        @id @default(uuid()) @db.Uuid
+  patientId String        @db.Uuid
+  status    ConsentStatus
+  scope     String
+  grantedAt DateTime?
+  revokedAt DateTime?
+  notes     String?
+  createdAt DateTime      @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model Encounter {
+  id                   String          @id @default(uuid()) @db.Uuid
+  patientId            String          @db.Uuid
+  assignedPhysicianId  String?         @db.Uuid
+  recordedByUserId     String          @db.Uuid
+  encounterType        EncounterType
+  chiefComplaint       String?
+  status               EncounterStatus @default(DRAFT)
+  startedAt            DateTime        @default(now())
+  completedAt          DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  version              Int             @default(1)
+
+  patient           Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  assignedPhysician User?              @relation("AssignedPhysician", fields: [assignedPhysicianId], references: [id])
+  recordedBy        User               @relation("RecordedBy", fields: [recordedByUserId], references: [id])
+  vitals            VitalMeasurement[]
+  labResults        LaboratoryResult[]
+  clinicalNotes     ClinicalNote[]
+  diagnosticRuns    DiagnosticRun[]
+  diagnoses         Diagnosis[]
+  prescriptions     Prescription[]
+  followUpTasks     FollowUpTask[]
+
+  @@index([patientId, startedAt])
+}
+
+model VitalMeasurement {
+  id           String    @id @default(uuid()) @db.Uuid
+  patientId    String    @db.Uuid
+  encounterId  String?   @db.Uuid
+  temperatureC Float?
+  heartRateBpm Int?
+  respRateBpm  Int?
+  systolicBp   Int?
+  diastolicBp  Int?
+  spo2Percent  Int?
+  weightKg     Float?
+  heightCm     Float?
+  recordedAt   DateTime  @default(now())
+  recordedByUserId String @db.Uuid
+
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, recordedAt])
+}
+
+model MedicalHistory {
+  id          String   @id @default(uuid()) @db.Uuid
+  patientId   String   @db.Uuid
+  condition   String
+  icd10Code   String?
+  onsetDate   DateTime? @db.Date
+  status      String   @default("active")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model Allergy {
+  id                 String          @id @default(uuid()) @db.Uuid
+  patientId          String          @db.Uuid
+  allergen           String
+  normalizedAllergen String
+  allergyType        AllergyType
+  reaction           String?
+  severity           AllergySeverity
+  status             AllergyStatus   @default(ACTIVE)
+  verifiedAt         DateTime?
+  verifiedByUserId   String?         @db.Uuid
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([normalizedAllergen])
+}
+
+model LaboratoryResult {
+  id          String   @id @default(uuid()) @db.Uuid
+  patientId   String   @db.Uuid
+  encounterId String?  @db.Uuid
+  testName    String
+  loincCode   String?
+  value       String
+  unit        String?
+  referenceRange String?
+  abnormalFlag String?
+  resultedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, resultedAt])
+}
+
+model ClinicalNote {
+  id                   String    @id @default(uuid()) @db.Uuid
+  patientId            String    @db.Uuid
+  encounterId          String?   @db.Uuid
+  authorId             String    @db.Uuid
+  noteType             String
+  originalText         String
+  processedText        String?
+  nlpStatus            NlpStatus @default(PENDING)
+  nlpProvider          String?
+  modelVersion         String?
+  processingLatencyMs  Int?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  version              Int       @default(1)
+
+  patient   Patient                   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter Encounter?                @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  entities  ExtractedClinicalEntity[]
+
+  @@index([patientId])
+  @@index([encounterId])
+}
+
+model ExtractedClinicalEntity {
+  id             String         @id @default(uuid()) @db.Uuid
+  clinicalNoteId String         @db.Uuid
+  category       EntityCategory
+  text           String
+  normalizedText String?
+  startOffset    Int
+  endOffset      Int
+  negated        Boolean        @default(false)
+  confidence     Float?
+  correctedText  String?
+  approved       Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+
+  clinicalNote ClinicalNote @relation(fields: [clinicalNoteId], references: [id], onDelete: Cascade)
+
+  @@index([clinicalNoteId])
+}
+
+model FollowUpTask {
+  id          String    @id @default(uuid()) @db.Uuid
+  patientId   String    @db.Uuid
+  encounterId String?   @db.Uuid
+  description String
+  dueDate     DateTime? @db.Date
+  completed   Boolean   @default(false)
+  createdByUserId String @db.Uuid
+  createdAt   DateTime  @default(now())
+
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+
+  @@index([dueDate])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CLINICAL DECISION SUPPORT
+// ──────────────────────────────────────────────────────────────────────────
+
+model DiagnosticRun {
+  id                    String              @id @default(uuid()) @db.Uuid
+  patientId             String              @db.Uuid
+  encounterId           String              @db.Uuid
+  requestedByUserId     String              @db.Uuid
+  provider              DiagnosticProvider
+  requestedModel        String?
+  returnedModel         String?
+  promptTemplateVersion String
+  sanitizationVersion   String
+  inputHash             String
+  generationId          String?
+  status                DiagnosticRunStatus @default(PENDING)
+  promptTokens          Int?
+  completionTokens      Int?
+  totalTokens           Int?
+  latencyMs             Int?
+  fallbackUsed          Boolean             @default(false)
+  fallbackReason        String?
+  validationStatus      ValidationStatus    @default(NOT_APPLICABLE)
+  clinicalSummary       String?
+  generalLimitations    Json?
+  redFlags              Json?
+  generatedAt           DateTime?
+  createdAt             DateTime            @default(now())
+
+  patient    Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter  Encounter   @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  diagnoses  Diagnosis[]
+  aiAnalyses AiAnalysis[]
+
+  @@index([encounterId, createdAt])
+  @@index([patientId])
+}
+
+model AiAnalysis {
+  id              String   @id @default(uuid()) @db.Uuid
+  diagnosticRunId String   @db.Uuid
+  diagnosisRank   Int
+  conditionName   String
+  explanation     String
+  confidence      Int
+  urgency         Urgency
+  createdAt       DateTime @default(now())
+
+  diagnosticRun DiagnosticRun @relation(fields: [diagnosticRunId], references: [id], onDelete: Cascade)
+  factors       AiFactor[]
+
+  @@index([diagnosticRunId])
+}
+
+model AiFactor {
+  id           String   @id @default(uuid()) @db.Uuid
+  aiAnalysisId String   @db.Uuid
+  factor       String
+  source       String
+  importance   Int
+  polarity     String   @default("supporting") // supporting | contradicting | missing
+
+  aiAnalysis AiAnalysis @relation(fields: [aiAnalysisId], references: [id], onDelete: Cascade)
+
+  @@index([aiAnalysisId])
+}
+
+model ClinicalGuidelineReference {
+  id               String   @id @default(uuid()) @db.Uuid
+  title            String
+  organization     String
+  publicationYear  Int
+  version          String?
+  referenceType    String
+  conditionCode    String?
+  medicationCode   String?
+  sourceUrl        String?
+  status           String   @default("active")
+  verifiedAt       DateTime?
+  verifiedBy       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  treatmentRecommendations TreatmentRecommendation[]
+
+  @@index([conditionCode])
+  @@index([medicationCode])
+}
+
+model Diagnosis {
+  id                String          @id @default(uuid()) @db.Uuid
+  diagnosticRunId   String?         @db.Uuid
+  patientId         String          @db.Uuid
+  encounterId       String          @db.Uuid
+  reviewedByUserId  String?         @db.Uuid
+  name              String
+  icd10Code         String?
+  snomedCode        String?
+  rank              Int?
+  confidence        Int?
+  urgency           Urgency         @default(ROUTINE)
+  source            DiagnosisSource
+  status            DiagnosisStatus @default(SUGGESTED)
+  explanation       String?
+  overrideReason    String?
+  confirmedAt       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  version           Int             @default(1)
+
+  diagnosticRun  DiagnosticRun?   @relation(fields: [diagnosticRunId], references: [id], onDelete: SetNull)
+  patient        Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter      Encounter        @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  treatmentPlans TreatmentPlan[]
+
+  @@index([patientId, createdAt])
+  @@index([encounterId])
+}
+
+model TreatmentPlan {
+  id             String              @id @default(uuid()) @db.Uuid
+  diagnosisId    String              @db.Uuid
+  patientId      String              @db.Uuid
+  createdByUserId String             @db.Uuid
+  status         TreatmentPlanStatus @default(DRAFT)
+  rationale      String?
+  approvedAt     DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  version        Int                 @default(1)
+
+  diagnosis       Diagnosis                 @relation(fields: [diagnosisId], references: [id], onDelete: Cascade)
+  patient         Patient                   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recommendations TreatmentRecommendation[]
+  prescriptions   Prescription[]
+
+  @@index([patientId])
+  @@index([diagnosisId])
+}
+
+model TreatmentRecommendation {
+  id                     String   @id @default(uuid()) @db.Uuid
+  treatmentPlanId        String   @db.Uuid
+  title                  String
+  description            String
+  lifestyleInterventions Json?
+  medicationOptions      Json?
+  monitoringRequirements Json?
+  contraindications      Json?
+  patientConsiderations  Json?
+  recommendationSource   String   @default("LOCAL_DEMO")
+  limitations            Json?
+  guidelineReferenceId   String?  @db.Uuid
+  selected               Boolean  @default(false)
+  createdAt              DateTime @default(now())
+
+  treatmentPlan       TreatmentPlan               @relation(fields: [treatmentPlanId], references: [id], onDelete: Cascade)
+  guidelineReference  ClinicalGuidelineReference? @relation(fields: [guidelineReferenceId], references: [id])
+
+  @@index([treatmentPlanId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEDICATION
+// ──────────────────────────────────────────────────────────────────────────
+
+model Medication {
+  id                     String   @id @default(uuid()) @db.Uuid
+  genericName            String
+  normalizedGenericName  String   @unique
+  drugClass              String?
+  indications            Json?
+  contraindications      Json?
+  renalConsiderations    String?
+  hepaticConsiderations  String?
+  pregnancyConsiderations String?
+  duplicateTherapyGroup  String?
+  active                 Boolean  @default(true)
+  dataSource             String   @default("SEED_SYNTHETIC")
+  dataVersion            String   @default("1.0.0")
+  lastReviewedDate       DateTime? @db.Date
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  brands       MedicationBrand[]
+  ingredients  MedicationIngredient[]
+  strengths    MedicationStrength[]
+  dosageRules  DosageRule[]
+  interactionsA DrugInteraction[] @relation("MedicationA")
+  interactionsB DrugInteraction[] @relation("MedicationB")
+  contraindicationRecords MedicationContraindication[]
+  prescriptionItems PrescriptionItem[]
+
+  @@index([normalizedGenericName])
+}
+
+model MedicationBrand {
+  id                  String @id @default(uuid()) @db.Uuid
+  medicationId        String @db.Uuid
+  brandName           String
+  normalizedBrandName String
+
+  medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+
+  @@index([normalizedBrandName])
+}
+
+model MedicationIngredient {
+  id                     String @id @default(uuid()) @db.Uuid
+  medicationId           String @db.Uuid
+  ingredientName         String
+  normalizedIngredientName String
+
+  medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+
+  @@index([normalizedIngredientName])
+}
+
+model MedicationStrength {
+  id           String @id @default(uuid()) @db.Uuid
+  medicationId String @db.Uuid
+  strength     String
+  route        String
+
+  medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+}
+
+model DrugInteraction {
+  id                 String         @id @default(uuid()) @db.Uuid
+  medicationAId      String         @db.Uuid
+  medicationBId      String         @db.Uuid
+  severity           SafetySeverity
+  mechanism          String?
+  clinicalEffect     String?
+  managementAdvice   String?
+  allowOverride      Boolean        @default(false)
+  ruleVersion        String         @default("1.0.0")
+  createdAt          DateTime       @default(now())
+
+  medicationA Medication @relation("MedicationA", fields: [medicationAId], references: [id], onDelete: Cascade)
+  medicationB Medication @relation("MedicationB", fields: [medicationBId], references: [id], onDelete: Cascade)
+
+  @@unique([medicationAId, medicationBId])
+  @@index([medicationAId])
+  @@index([medicationBId])
+}
+
+model MedicationContraindication {
+  id             String         @id @default(uuid()) @db.Uuid
+  medicationId   String         @db.Uuid
+  conditionCode  String?
+  conditionName  String
+  severity       SafetySeverity
+  allowOverride  Boolean        @default(false)
+  notes          String?
+  ruleVersion    String         @default("1.0.0")
+
+  medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+
+  @@index([medicationId])
+}
+
+model DosageRule {
+  id              String   @id @default(uuid()) @db.Uuid
+  medicationId    String   @db.Uuid
+  indication      String
+  minAgeYears     Int?
+  maxAgeYears     Int?
+  standardDose    Float
+  doseUnit        String
+  frequency       String
+  maxDailyDose    Float?
+  renalAdjustment Json?
+  hepaticAdjustment Json?
+  monitoringNote  String?
+  ruleVersion     String   @default("1.0.0")
+  createdAt       DateTime @default(now())
+
+  medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+
+  @@index([medicationId])
+}
+
+model Prescription {
+  id              String              @id @default(uuid()) @db.Uuid
+  patientId       String              @db.Uuid
+  encounterId     String?             @db.Uuid
+  prescriberId    String              @db.Uuid
+  treatmentPlanId String?             @db.Uuid
+  status          PrescriptionStatus  @default(DRAFT)
+  issuedAt        DateTime?
+  finalizedAt     DateTime?
+  notes           String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  version         Int                 @default(1)
+
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter     Encounter?     @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  treatmentPlan TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id])
+  items         PrescriptionItem[]
+  safetyChecks  SafetyCheck[]
+
+  @@index([patientId, createdAt])
+}
+
+model PrescriptionItem {
+  id                   String   @id @default(uuid()) @db.Uuid
+  prescriptionId       String   @db.Uuid
+  medicationId         String   @db.Uuid
+  strength             String?
+  dose                 Float
+  doseUnit             String
+  frequency            String
+  route                String
+  durationDays         Int?
+  startDate            DateTime? @db.Date
+  endDate              DateTime? @db.Date
+  quantity             Int?
+  refills              Int      @default(0)
+  indication            String?
+  specialInstructions   String?
+  createdAt            DateTime @default(now())
+
+  prescription     Prescription       @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medication       Medication         @relation(fields: [medicationId], references: [id])
+  dosageCalculations DosageCalculation[]
+  safetyChecks     SafetyCheck[]
+
+  @@index([prescriptionId])
+}
+
+model DosageCalculation {
+  id                  String   @id @default(uuid()) @db.Uuid
+  prescriptionItemId  String   @db.Uuid
+  suggestedDose       Float
+  doseUnit            String
+  frequency           String
+  maxDose             Float?
+  adjustmentNote      String?
+  monitoringNote      String?
+  ruleSource          String
+  ruleVersion         String
+  inputsUsed          Json
+  limitations         Json?
+  createdAt           DateTime @default(now())
+
+  prescriptionItem PrescriptionItem @relation(fields: [prescriptionItemId], references: [id], onDelete: Cascade)
+
+  @@index([prescriptionItemId])
+}
+
+model SafetyCheck {
+  id                  String          @id @default(uuid()) @db.Uuid
+  prescriptionId      String          @db.Uuid
+  prescriptionItemId  String?         @db.Uuid
+  checkType           SafetyCheckType
+  severity            SafetySeverity
+  result              String
+  description         String
+  blocked             Boolean         @default(false)
+  ruleVersion         String
+  acknowledgedByUserId String?        @db.Uuid
+  acknowledgedAt      DateTime?
+  overrideReason      String?
+  createdAt           DateTime        @default(now())
+
+  prescription     Prescription      @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  prescriptionItem PrescriptionItem? @relation(fields: [prescriptionItemId], references: [id], onDelete: Cascade)
+
+  @@index([prescriptionId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// REPORTS AND ADMINISTRATION
+// ──────────────────────────────────────────────────────────────────────────
+
+model ClinicalReport {
+  id           String       @id @default(uuid()) @db.Uuid
+  patientId    String       @db.Uuid
+  encounterId  String?      @db.Uuid
+  reportType   ReportType
+  status       ReportStatus @default(DRAFT)
+  narrative    String?
+  content      Json
+  createdByUserId String    @db.Uuid
+  approvedByUserId String?  @db.Uuid
+  approvedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  patient Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  exports ReportExport[]
+
+  @@index([patientId, createdAt])
+}
+
+model ReportExport {
+  id            String       @id @default(uuid()) @db.Uuid
+  reportId      String       @db.Uuid
+  format        ExportFormat
+  exportedByUserId String    @db.Uuid
+  exportedAt    DateTime     @default(now())
+  fileHash      String?
+
+  report ClinicalReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+model DrugDatasetImport {
+  id             String       @id @default(uuid()) @db.Uuid
+  fileName       String
+  importedByUserId String     @db.Uuid
+  status         ImportStatus @default(PREVIEW)
+  datasetVersion String
+  totalRows      Int          @default(0)
+  validRows      Int          @default(0)
+  invalidRows    Int          @default(0)
+  errorSummary   Json?
+  createdAt      DateTime     @default(now())
+  committedAt    DateTime?
+
+  items DrugDatasetImportItem[]
+}
+
+model DrugDatasetImportItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  importId     String   @db.Uuid
+  rowNumber    Int
+  rawData      Json
+  valid        Boolean
+  errorMessage String?
+
+  import DrugDatasetImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId])
+}
+
+model BackupRecord {
+  id           String   @id @default(uuid()) @db.Uuid
+  fileName     String
+  sizeBytes    BigInt?
+  status       String
+  triggeredByUserId String? @db.Uuid
+  integrityHash String?
+  createdAt    DateTime @default(now())
+}
+
+model IntegrationEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  direction   String   // IMPORT | EXPORT
+  resourceType String
+  format      String
+  patientId   String?  @db.Uuid
+  performedByUserId String @db.Uuid
+  success     Boolean
+  details     Json?
+  createdAt   DateTime @default(now())
+}

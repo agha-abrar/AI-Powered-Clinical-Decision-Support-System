@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cdss-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cdss
+      POSTGRES_PASSWORD: cdss_dev_password
+      POSTGRES_DB: cdss
+    ports:
+      - "5432:5432"
+    volumes:
+      - cdss_postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdss -d cdss"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: cdss-postgres-test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cdss_test
+      POSTGRES_PASSWORD: cdss_test_password
+      POSTGRES_DB: cdss_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdss_test -d cdss_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    profiles: ["test"]
+
+  ai-service:
+    build:
+      context: ./services/ai
+      dockerfile: Dockerfile
+    container_name: cdss-ai
+    restart: unless-stopped
+    env_file:
+      - ./services/ai/.env
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: cdss-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025" # web UI
+      - "1025:1025" # smtp
+
+volumes:
+  cdss_postgres_data:

@@ -1,0 +1,36 @@
+{
+  "name": "ai-cdss",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI-Powered Clinical Decision Support and Drug Recommendation System (educational prototype)",
+  "packageManager": "pnpm@9.6.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:desktop": "pnpm --filter @cdss/desktop dev",
+    "dev:api": "pnpm --filter @cdss/api start:dev",
+    "dev:ai": "cd services/ai && ./scripts/dev.sh",
+    "docker:up": "docker compose up -d postgres mailpit",
+    "docker:down": "docker compose down",
+    "db:generate": "pnpm --filter @cdss/api prisma:generate",
+    "db:migrate": "pnpm --filter @cdss/api prisma:migrate",
+    "db:seed": "pnpm --filter @cdss/api prisma:seed",
+    "db:reset": "pnpm --filter @cdss/api prisma:reset",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "pnpm --filter @cdss/api test:integration",
+    "test:e2e": "pnpm --filter @cdss/desktop test:e2e",
+    "build": "turbo run build",
+    "package": "pnpm --filter @cdss/desktop package",
+    "package:win": "pnpm --filter @cdss/desktop package:win",
+    "package:mac": "pnpm --filter @cdss/desktop package:mac",
+    "package:linux": "pnpm --filter @cdss/desktop package:linux"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.2"
+  }
+}
