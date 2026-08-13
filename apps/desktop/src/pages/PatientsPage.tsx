@@ -42,6 +42,7 @@ export default function PatientsPage() {
       <div className="flex items-center gap-2 mb-4">
         <h2 className="text-lg font-semibold">Patients</h2>
         <div className="ml-auto flex items-center gap-2">
+          <a href="/dashboard/patients/new" className="px-3 py-1 rounded border bg-white">New Patient</a>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="rounded px-2 py-1 border" />
           <button onClick={fetchPatients} className="px-3 py-1 rounded border">Search</button>
         </div>
