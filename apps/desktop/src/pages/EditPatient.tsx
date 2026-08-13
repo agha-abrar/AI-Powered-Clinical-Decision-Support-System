@@ -18,7 +18,7 @@ export default function EditPatientPage() {
 
   useEffect(() => {
     if (!id) return;
-    api.getPatient(id).then((p) => reset({
+    api.getPatient(id).then((p: any) => reset({
       firstName: p.firstName,
       lastName: p.lastName,
       dateOfBirth: p.dateOfBirth?.split('T')[0],
