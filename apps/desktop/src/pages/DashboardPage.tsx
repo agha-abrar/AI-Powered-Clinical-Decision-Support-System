@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Activity, Database, LogOut, Server } from "lucide-react";
-import { Users } from "lucide-react";
+import { Activity, Database, FileText, LogOut, Server, ShieldCheck } from "lucide-react";
 import { api } from "../lib/api-client";
 import { useAuthStore } from "../stores/auth-store";
 
@@ -53,8 +52,30 @@ export default function DashboardPage() {
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="rounded-xl border p-4">
           <h3 className="font-medium">Administration</h3>
-          <div className="mt-2">
-            <a href="/dashboard/patients" className="text-clinical-blue underline">Manage patients</a>
+          <div className="mt-3 space-y-2">
+            <button onClick={() => navigate("/dashboard/patients")} className="block text-left text-clinical-blue underline">
+              Manage patients
+            </button>
+            <button onClick={() => navigate("/dashboard/reports")} className="block text-left text-clinical-blue underline">
+              Reports
+            </button>
+            <button onClick={() => navigate("/dashboard/audit")} className="block text-left text-clinical-blue underline">
+              Audit logs
+            </button>
+          </div>
+        </div>
+        <div className="rounded-xl border p-4 flex items-center gap-3">
+          <FileText className="text-blue-600" />
+          <div>
+            <p className="font-medium">Clinical reports</p>
+            <p className="text-sm text-slate-500">Compile patient summaries</p>
+          </div>
+        </div>
+        <div className="rounded-xl border p-4 flex items-center gap-3">
+          <ShieldCheck className="text-emerald-600" />
+          <div>
+            <p className="font-medium">Audit trail</p>
+            <p className="text-sm text-slate-500">Review actions and integrity</p>
           </div>
         </div>
       </div>
