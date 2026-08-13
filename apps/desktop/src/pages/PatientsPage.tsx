@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api-client";
 import { useAuthStore } from "../stores/auth-store";
 
 export default function PatientsPage() {
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,12 +63,33 @@ export default function PatientsPage() {
           </thead>
           <tbody>
             {patients.map((p) => (
-              <tr key={p.id} className="border-t">
+              <tr key={p.id} className="border-t hover:bg-slate-50 cursor-pointer" onClick={() => navigate(`/dashboard/patients/${p.id}`)}>
                 <td className="py-2">{p.medicalRecordNumber}</td>
                 <td className="py-2">{p.firstName} {p.lastName}</td>
                 <td className="py-2">{new Date(p.dateOfBirth).toLocaleDateString()}</td>
                 <td className="py-2">
-                  {isAdmin && <button onClick={() => handleDelete(p.id)} className="text-red-600">Remove</button>}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/dashboard/patients/${p.id}`);
+                      }}
+                      className="text-blue-600"
+                    >
+                      View
+                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(p.id);
+                        }}
+                        className="text-red-600"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
