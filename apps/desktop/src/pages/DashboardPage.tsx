@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Activity, Database, LogOut, Server } from "lucide-react";
+import { Users } from "lucide-react";
 import { api } from "../lib/api-client";
 import { useAuthStore } from "../stores/auth-store";
 
@@ -48,6 +49,15 @@ export default function DashboardPage() {
         <StatusCard icon={<Server size={18} />} label="AI Service" status={health?.aiService.status ?? "checking..."} />
         <StatusCard icon={<Activity size={18} />} label="API" status="up" />
       </motion.div>
+
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-xl border p-4">
+          <h3 className="font-medium">Administration</h3>
+          <div className="mt-2">
+            <a href="/dashboard/patients" className="text-clinical-blue underline">Manage patients</a>
+          </div>
+        </div>
+      </div>
 
       <div className="mt-10 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-8 text-center text-slate-500">
         Patient management, encounters, diagnostics, prescriptions, and reporting screens build on this

@@ -50,4 +50,15 @@ export const api = {
     logout: (refreshToken) => request("/api/v1/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken }) }),
     healthDependencies: () => request("/api/v1/health/dependencies", {}, false),
     searchPatients: (query) => request(`/api/v1/patients?q=${encodeURIComponent(query)}`),
+    createPatient: (body) => request(`/api/v1/patients`, { method: "POST", body: JSON.stringify(body) }),
+    deletePatient: (id) => request(`/api/v1/patients/${id}`, { method: "DELETE" }),
+    compileReport: (patientId, reportType, encounterId) => request(`/api/v1/reports`, { method: "POST", body: JSON.stringify({ patientId, reportType, encounterId }) }),
+    listAuditLogs: (params) => {
+        const qs = Object.entries(params)
+            .filter(([, v]) => v)
+            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+            .join("&");
+        return request(`/api/v1/audit-logs?${qs}`);
+    },
+    manualDiagnosis: (encounterId, patientId, name, icd10Code) => request(`/api/v1/diagnoses/manual`, { method: "POST", body: JSON.stringify({ encounterId, patientId, name, icd10Code }) }),
 };

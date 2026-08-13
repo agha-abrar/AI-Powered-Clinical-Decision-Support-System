@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/lib/api-client.ts","./src/pages/dashboardpage.tsx","./src/pages/loginpage.tsx","./src/stores/auth-store.ts","./src/types/global.d.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/main.tsx","./src/lib/api-client.ts","./src/pages/dashboardpage.tsx","./src/pages/loginpage.tsx","./src/pages/patientspage.tsx","./src/stores/auth-store.ts","./src/types/global.d.ts"],"errors":true,"version":"5.9.3"}

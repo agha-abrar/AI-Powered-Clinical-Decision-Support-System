@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionsGuard } from "../common/security/permissions.guard";
@@ -57,6 +57,12 @@ export class PatientsController {
   @RequirePermissions(PERMISSIONS.PATIENT_WRITE)
   async update(@Param("id") id: string, @Body() dto: UpdatePatientRequestDto, @Req() req: AuthenticatedRequest) {
     return this.patients.update(id, dto, req.user!.sub);
+  }
+
+  @Delete(":id")
+  @RequirePermissions(PERMISSIONS.PATIENT_WRITE)
+  async remove(@Param("id") id: string, @Req() req: AuthenticatedRequest) {
+    return this.patients.remove(id, req.user!.sub);
   }
 
   @Get(":id/timeline")

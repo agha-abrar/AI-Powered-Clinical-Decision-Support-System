@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
+import PatientsPage from "./pages/PatientsPage";
 import { useAuthStore } from "./stores/auth-store";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -18,6 +19,14 @@ export default function App() {
         element={
           <RequireAuth>
             <DashboardPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/patients"
+        element={
+          <RequireAuth>
+            <PatientsPage />
           </RequireAuth>
         }
       />

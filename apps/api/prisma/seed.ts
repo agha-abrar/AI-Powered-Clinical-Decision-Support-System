@@ -239,7 +239,12 @@ async function seedGuidelineReferences() {
   });
 }
 
-async function seedPatients(physicianId: string, nurseId: string, medications: Awaited<ReturnType<typeof seedMedications>>) {
+async function seedPatients(
+  physicianId: string,
+  nurseId: string,
+  adminId: string,
+  medications: Awaited<ReturnType<typeof seedMedications>>,
+) {
   const patientsData = [
     {
       mrn: "MRN-00001",
@@ -322,6 +327,64 @@ async function seedPatients(physicianId: string, nurseId: string, medications: A
         recordedByUserId: nurseId,
       },
     });
+
+    // Audit entry: admin created this patient
+    await prisma.auditLog.create({
+      data: {
+        actorUserId: adminId,
+        patientId: patient.id,
+        action: "patient:create",
+        resourceType: "patient",
+        resourceId: patient.id,
+        success: true,
+        severity: "INFO",
+        entryHash: `seed-${patient.medicalRecordNumber}`,
+      },
+    });
+
+    // Create a sample clinical report created by admin
+    await prisma.clinicalReport.create({
+      data: {
+        patientId: patient.id,
+        encounterId: encounter.id,
+        reportType: "FULL_CLINICAL",
+        status: "DRAFT",
+        narrative: `Seeded full clinical summary for ${patient.firstName} ${patient.lastName}`,
+        content: { summary: `Synthetic full clinical summary for ${patient.medicalRecordNumber}` },
+        createdByUserId: adminId,
+      },
+    });
+
+    // For the first patient, create a physician diagnosis example
+    if (patient.medicalRecordNumber === "MRN-00001") {
+      const diagnosis = await prisma.diagnosis.create({
+        data: {
+          patientId: patient.id,
+          encounterId: encounter.id,
+          reviewedByUserId: physicianId,
+          name: "Type 2 Diabetes Mellitus",
+          icd10Code: "E11.9",
+          rank: 1,
+          confidence: 85,
+          source: "MANUAL",
+          status: "CONFIRMED",
+          explanation: "Seeded diagnosis by physician for demo purposes.",
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          actorUserId: physicianId,
+          patientId: patient.id,
+          action: "diagnosis:create",
+          resourceType: "diagnosis",
+          resourceId: diagnosis.id,
+          success: true,
+          severity: "INFO",
+          entryHash: `seed-dx-${diagnosis.id}`,
+        },
+      });
+    }
   }
 }
 
@@ -332,7 +395,7 @@ async function main() {
   console.log("Seeding demo users...");
   const physician = await upsertUser("physician@cdss.local", "physician", "Dr. Alex Rivera", roles.PHYSICIAN.id, "MD-SYNTH-001");
   const nurse = await upsertUser("nurse@cdss.local", "nurse", "Nurse Sam Chen", roles.NURSE.id);
-  await upsertUser("admin@cdss.local", "admin", "Admin Jordan Lee", roles.SYSTEM_ADMIN.id);
+  const admin = await upsertUser("admin@cdss.local", "admin", "Admin Jordan Lee", roles.SYSTEM_ADMIN.id);
 
   console.log("Seeding system settings...");
   await prisma.systemSetting.upsert({
@@ -353,7 +416,7 @@ async function main() {
   await seedGuidelineReferences();
 
   console.log("Seeding synthetic patients...");
-  await seedPatients(physician.id, nurse.id, medications);
+  await seedPatients(physician.id, nurse.id, admin.id, medications);
 
   console.log("Seed complete.");
   console.log("Demo accounts (all use password ChangeMe123!, password change required at first login):");

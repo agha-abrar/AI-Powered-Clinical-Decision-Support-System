@@ -107,6 +107,23 @@ export class PatientsService {
     return this.toResponse(updated);
   }
 
+  async remove(id: string, actorUserId: string) {
+    const existing = await this.prisma.patient.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException({ code: "NOT_FOUND", message: "Patient not found" });
+
+    const updated = await this.prisma.patient.update({ where: { id }, data: { active: false, version: { increment: 1 } } });
+
+    await this.audit.record({
+      actorUserId,
+      patientId: id,
+      action: "PATIENT_DELETED",
+      resourceType: "Patient",
+      resourceId: id,
+    });
+
+    return this.toResponse(updated);
+  }
+
   async findById(id: string) {
     const patient = await this.prisma.patient.findUnique({ where: { id } });
     if (!patient) throw new NotFoundException({ code: "NOT_FOUND", message: "Patient not found" });
