@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Activity, Database, FileText, LogOut, Server, ShieldCheck } from "lucide-react";
+import { Activity, Database, FileText, LogOut, Server, ShieldCheck, Stethoscope } from "lucide-react";
 import { api } from "../lib/api-client";
 import { useAuthStore } from "../stores/auth-store";
 
@@ -49,7 +49,7 @@ export default function DashboardPage() {
         <StatusCard icon={<Activity size={18} />} label="API" status="up" />
       </motion.div>
 
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="rounded-xl border p-4">
           <h3 className="font-medium">Administration</h3>
           <div className="mt-3 space-y-2">
@@ -77,6 +77,13 @@ export default function DashboardPage() {
             <p className="font-medium">Audit trail</p>
             <p className="text-sm text-slate-500">Review actions and integrity</p>
           </div>
+        </div>
+        <div className="rounded-xl border p-4 flex items-center gap-3">
+          <Stethoscope className="text-violet-600" />
+          <button onClick={() => navigate("/dashboard/diagnosis")} className="text-left">
+            <p className="font-medium">Diagnosis entry</p>
+            <p className="text-sm text-slate-500">Physician manual diagnosis</p>
+          </button>
         </div>
       </div>
 

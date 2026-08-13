@@ -59,6 +59,7 @@ export const api = {
 
   searchPatients: (query: string) => request(`/api/v1/patients?q=${encodeURIComponent(query)}`),
   createPatient: (body: any) => request(`/api/v1/patients`, { method: "POST", body: JSON.stringify(body) }),
+  createEncounter: (patientId: string, body: any) => request(`/api/v1/patients/${patientId}/encounters`, { method: "POST", body: JSON.stringify(body) }),
   deletePatient: (id: string) => request(`/api/v1/patients/${id}`, { method: "DELETE" }),
   getPatient: (id: string) => request(`/api/v1/patients/${id}`),
   updatePatient: (id: string, body: any) => request(`/api/v1/patients/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
