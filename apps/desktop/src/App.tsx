@@ -3,6 +3,8 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import PatientsPage from "./pages/PatientsPage";
 import CreatePatientPage from "./pages/CreatePatient";
+import PatientDetails from "./pages/PatientDetails";
+import EditPatientPage from "./pages/EditPatient";
 import { useAuthStore } from "./stores/auth-store";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -36,6 +38,22 @@ export default function App() {
         element={
           <RequireAuth>
             <CreatePatientPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/patients/:id"
+        element={
+          <RequireAuth>
+            <PatientDetails />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/patients/:id/edit"
+        element={
+          <RequireAuth>
+            <EditPatientPage />
           </RequireAuth>
         }
       />
