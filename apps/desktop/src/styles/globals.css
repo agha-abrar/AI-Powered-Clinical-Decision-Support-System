@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -15,5 +15,9 @@
 }
 
 .focus-ring {
-  @apply outline-none ring-2 ring-clinical-blue ring-offset-2 ring-offset-white dark:ring-offset-slate-950;
+  @apply outline-none ring-2 ring-clinical-blue ring-offset-2 ring-offset-white;
+}
+
+.auth-input {
+  @apply min-h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-rose-700 focus:ring-2 focus:ring-rose-700/20;
 }

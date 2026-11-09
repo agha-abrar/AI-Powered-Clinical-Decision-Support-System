@@ -21,6 +21,7 @@ services/ai/__pycache__/
 # electron
 apps/desktop/release/
 apps/desktop/dist-electron/
+apps/desktop/src/**/*.js
 
 # os
 .DS_Store

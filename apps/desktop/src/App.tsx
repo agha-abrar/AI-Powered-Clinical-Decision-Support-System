@@ -8,6 +8,12 @@ import EditPatientPage from "./pages/EditPatient";
 import ReportsPage from "./pages/ReportsPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
 import DiagnosisPage from "./pages/DiagnosisPage";
+import UsersPage from "./pages/UsersPage";
+import MedicationsPage from "./pages/MedicationsPage";
+import EncountersPage from "./pages/EncountersPage";
+import PrescriptionsPage from "./pages/PrescriptionsPage";
+import PrescriptionsListPage from "./pages/PrescriptionsListPage";
+import PrescriptionDetailPage from "./pages/PrescriptionDetailPage";
 import { useAuthStore } from "./stores/auth-store";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -20,6 +26,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<LoginPage />} />
       <Route
         path="/dashboard"
         element={
@@ -65,6 +72,54 @@ export default function App() {
         element={
           <RequireAuth>
             <ReportsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/users"
+        element={
+          <RequireAuth>
+            <UsersPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/medications"
+        element={
+          <RequireAuth>
+            <MedicationsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/encounters"
+        element={
+          <RequireAuth>
+            <EncountersPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/prescriptions"
+        element={
+          <RequireAuth>
+            <PrescriptionsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/prescriptions/list"
+        element={
+          <RequireAuth>
+            <PrescriptionsListPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/prescriptions/:id"
+        element={
+          <RequireAuth>
+            <PrescriptionDetailPage />
           </RequireAuth>
         }
       />

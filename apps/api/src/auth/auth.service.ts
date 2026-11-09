@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ForbiddenException, BadRequestException } from "@nestjs/common";
+import { Injectable, UnauthorizedException, ForbiddenException, BadRequestException, ConflictException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import * as argon2 from "argon2";
@@ -6,7 +6,7 @@ import { authenticator } from "otplib";
 import { randomBytes, createHash, randomUUID } from "crypto";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
-import { ROLE_PERMISSIONS, PermissionKey } from "@cdss/shared";
+import { PASSWORD_POLICY_REGEX, ROLE_PERMISSIONS, PermissionKey } from "@cdss/shared";
 import { RoleName, UserStatus } from "@prisma/client";
 
 interface TokenPair {
@@ -31,6 +31,67 @@ export class AuthService {
   private async getSetting(key: string, fallback: string): Promise<string> {
     const row = await this.prisma.systemSetting.findUnique({ where: { key } });
     return row?.value ?? fallback;
+  }
+
+  async register(input: {
+    fullName: string;
+    username: string;
+    email: string;
+    roleName: RoleName;
+    licenseNumber?: string;
+    password: string;
+  }) {
+    if (this.config.get<string>("DEMO_ALLOW_SELF_REGISTRATION") !== "true") {
+      throw new ForbiddenException({ code: "REGISTRATION_DISABLED", message: "Registration is currently unavailable" });
+    }
+    if (!PASSWORD_POLICY_REGEX.test(input.password)) {
+      throw new BadRequestException({
+        code: "VALIDATION_FAILED",
+        message: "Password must be at least 12 characters and include uppercase, lowercase, a number, and a special character",
+      });
+    }
+    if (input.roleName === "SYSTEM_ADMIN") {
+      throw new BadRequestException({ code: "VALIDATION_FAILED", message: "System administrator access must be assigned by an administrator" });
+    }
+
+    const role = await this.prisma.role.findUnique({ where: { name: input.roleName } });
+    if (!role) throw new BadRequestException({ code: "VALIDATION_FAILED", message: "Requested role is unavailable" });
+
+    const email = input.email.trim().toLowerCase();
+    const username = input.username.trim();
+    const existing = await this.prisma.user.findFirst({ where: { OR: [{ email }, { username }] } });
+    if (existing) throw new ConflictException({ code: "ACCOUNT_EXISTS", message: "An account with those details already exists" });
+
+    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+    let user;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          fullName: input.fullName.trim(),
+          username,
+          email,
+          passwordHash,
+          licenseNumber: input.licenseNumber?.trim() || undefined,
+          status: "PENDING",
+          passwordChangeRequired: false,
+          roles: { create: [{ roleId: role.id }] },
+        },
+      });
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+        throw new ConflictException({ code: "ACCOUNT_EXISTS", message: "An account with those details already exists" });
+      }
+      throw error;
+    }
+
+    await this.audit.record({
+      action: "AUTH_REGISTRATION_REQUESTED",
+      resourceType: "User",
+      resourceId: user.id,
+      metadata: { requestedRole: input.roleName },
+    });
+
+    return { message: "Your access request was submitted. An administrator must approve your account before you can sign in." };
   }
 
   /** Step 1: identifier + password. Returns either full tokens or an MFA challenge. */
@@ -61,6 +122,9 @@ export class AuthService {
     }
     if (user.status === "INACTIVE") {
       throw new ForbiddenException({ code: "ACCOUNT_INACTIVE", message: "This account is inactive" });
+    }
+    if (user.status === "PENDING") {
+      throw new ForbiddenException({ code: "ACCOUNT_PENDING", message: "Your account is awaiting administrator approval" });
     }
 
     await this.prisma.user.update({

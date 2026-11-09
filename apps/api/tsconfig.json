@@ -16,7 +16,8 @@
     "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
-    "isolatedModules": false
+    "isolatedModules": false,
+    "types": ["node", "jest"]
   },
-  "include": ["src/**/*.ts", "prisma/seed.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "prisma/seed.ts"]
 }

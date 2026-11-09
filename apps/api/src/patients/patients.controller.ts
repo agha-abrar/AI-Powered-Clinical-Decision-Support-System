@@ -2,6 +2,8 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } f
 import { ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionsGuard } from "../common/security/permissions.guard";
+import { RolesGuard } from "../common/security/roles.guard";
+import { RequireRoles } from "../common/security/roles.decorator";
 import { RequirePermissions } from "../common/security/permissions.decorator";
 import { PERMISSIONS } from "@cdss/shared";
 import { PatientsService } from "./patients.service";
@@ -61,6 +63,8 @@ export class PatientsController {
 
   @Delete(":id")
   @RequirePermissions(PERMISSIONS.PATIENT_WRITE)
+  @RequireRoles("SYSTEM_ADMIN")
+  @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
   async remove(@Param("id") id: string, @Req() req: AuthenticatedRequest) {
     return this.patients.remove(id, req.user!.sub);
   }

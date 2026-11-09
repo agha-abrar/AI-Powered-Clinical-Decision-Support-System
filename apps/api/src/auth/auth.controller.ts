@@ -8,6 +8,7 @@ import {
   RefreshRequestDto,
   ForgotPasswordRequestDto,
   ResetPasswordRequestDto,
+  RegisterRequestDto,
 } from "./dto/auth.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { AuthenticatedRequest } from "./types/authenticated-request";
@@ -16,6 +17,12 @@ import { AuthenticatedRequest } from "./types/authenticated-request";
 @Controller("api/v1/auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Post("register")
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  async register(@Body() dto: RegisterRequestDto) {
+    return this.authService.register(dto);
+  }
 
   @Post("login")
   @Throttle({ default: { limit: 5, ttl: 60_000 } })

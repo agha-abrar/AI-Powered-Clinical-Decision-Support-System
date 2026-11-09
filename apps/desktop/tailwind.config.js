@@ -6,8 +6,8 @@ module.exports = {
     extend: {
       colors: {
         clinical: {
-          blue: "#2563eb",
-          indigo: "#4f46e5",
+          blue: "#b42332",
+          indigo: "#9f1239",
           teal: "#0d9488",
           purple: "#7c3aed",
           danger: "#dc2626",

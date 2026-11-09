@@ -5,6 +5,7 @@ import { PermissionsGuard } from "../common/security/permissions.guard";
 import { RequirePermissions } from "../common/security/permissions.decorator";
 import { PERMISSIONS } from "@cdss/shared";
 import { PrescriptionsService } from "./prescriptions.service";
+import { Get, Query } from "@nestjs/common";
 import { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { DosageService, DosageCalculationInput } from "../safety-checks/dosage.service";
 import { CreatePrescriptionDto } from "@cdss/shared";
@@ -25,6 +26,18 @@ export class PrescriptionsController {
   @RequirePermissions(PERMISSIONS.PRESCRIPTION_WRITE)
   async validate(@Param("id") id: string, @Req() req: AuthenticatedRequest) {
     return this.prescriptions.runSafetyChecks(id, req.user!.sub);
+  }
+
+  @Get("prescriptions")
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_READ)
+  async list(@Query("patientId") patientId?: string, @Query("status") status?: string, @Query("page") page = "1", @Query("pageSize") pageSize = "20") {
+    return this.prescriptions.list({ patientId, status, page: Number(page), pageSize: Number(pageSize) });
+  }
+
+  @Get("prescriptions/:id")
+  @RequirePermissions(PERMISSIONS.PRESCRIPTION_READ)
+  async findById(@Param("id") id: string) {
+    return this.prescriptions.findById(id);
   }
 
   @Post("prescriptions/:id/finalize")

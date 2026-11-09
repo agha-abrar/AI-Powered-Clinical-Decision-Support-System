@@ -196,4 +196,30 @@ export class PrescriptionsService {
 
     return finalized;
   }
+
+  async list(opts: { patientId?: string; status?: string; page?: number; pageSize?: number }) {
+    const where: any = {};
+    if (opts.patientId) where.patientId = opts.patientId;
+    if (opts.status) where.status = opts.status;
+    const page = Math.max(1, opts.page ?? 1);
+    const pageSize = Math.min(100, opts.pageSize ?? 20);
+    const items = await this.prisma.prescription.findMany({
+      where,
+      include: { items: true },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+    const total = await this.prisma.prescription.count({ where });
+    return { items, total, page, pageSize };
+  }
+
+  async findById(id: string) {
+    const pres = await this.prisma.prescription.findUnique({
+      where: { id },
+      include: { items: true, patient: true, safetyChecks: true },
+    });
+    if (!pres) throw new NotFoundException({ code: "NOT_FOUND", message: "Prescription not found" });
+    return pres;
+  }
 }

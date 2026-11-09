@@ -42,9 +42,21 @@ export interface LoginResponse {
   permissions?: string[];
 }
 
+export interface RegistrationRequest {
+  fullName: string;
+  username: string;
+  email: string;
+  roleName: "PHYSICIAN" | "NURSE";
+  licenseNumber?: string;
+  password: string;
+}
+
 export const api = {
   login: (identifier: string, password: string) =>
     request<LoginResponse>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ identifier, password }) }, false),
+
+  register: (body: RegistrationRequest) =>
+    request<{ message: string }>("/api/v1/auth/register", { method: "POST", body: JSON.stringify(body) }, false),
 
   verifyMfa: (mfaSessionToken: string, code: string) =>
     request<LoginResponse>(
@@ -63,6 +75,8 @@ export const api = {
   deletePatient: (id: string) => request(`/api/v1/patients/${id}`, { method: "DELETE" }),
   getPatient: (id: string) => request(`/api/v1/patients/${id}`),
   updatePatient: (id: string, body: any) => request(`/api/v1/patients/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  searchMedications: (q = "") => request(`/api/v1/medications?q=${encodeURIComponent(q)}&limit=100`),
+  getMedication: (id: string) => request(`/api/v1/medications/${id}`),
   compileReport: (patientId: string, reportType: string, encounterId?: string) =>
     request(`/api/v1/reports`, { method: "POST", body: JSON.stringify({ patientId, reportType, encounterId }) }),
   listAuditLogs: (params: Record<string, string | undefined>) => {
@@ -74,4 +88,24 @@ export const api = {
   },
   manualDiagnosis: (encounterId: string, patientId: string, name: string, icd10Code?: string) =>
     request(`/api/v1/diagnoses/manual`, { method: "POST", body: JSON.stringify({ encounterId, patientId, name, icd10Code }) }),
+  listUsers: (page = 1, pageSize = 50) => request(`/api/v1/users?page=${page}&pageSize=${pageSize}`),
+  createUser: (body: any) => request(`/api/v1/users`, { method: "POST", body: JSON.stringify(body) }),
+  activateUser: (id: string) => request(`/api/v1/users/${id}/activate`, { method: "POST" }),
+  deactivateUser: (id: string) => request(`/api/v1/users/${id}/deactivate`, { method: "POST" }),
+  lockUser: (id: string) => request(`/api/v1/users/${id}/lock`, { method: "POST" }),
+  unlockUser: (id: string) => request(`/api/v1/users/${id}/unlock`, { method: "POST" }),
+  assignRoles: (id: string, roleNames: string[]) => request(`/api/v1/users/${id}/roles`, { method: "PUT", body: JSON.stringify({ roleNames }) }),
+  createPrescription: (body: any) => request(`/api/v1/prescriptions`, { method: "POST", body: JSON.stringify(body) }),
+  validatePrescription: (id: string) => request(`/api/v1/prescriptions/${id}/validate`, { method: "POST" }),
+  finalizePrescription: (id: string) => request(`/api/v1/prescriptions/${id}/finalize`, { method: "POST" }),
+  acknowledgeSafety: (safetyId: string, overrideReason?: string) => request(`/api/v1/safety/acknowledge/${safetyId}`, { method: "POST", body: JSON.stringify({ overrideReason }) }),
+  calculateDosage: (body: any) => request(`/api/v1/dosage/calculate`, { method: "POST", body: JSON.stringify(body) }),
+  listPrescriptions: (params: { patientId?: string; status?: string; page?: number; pageSize?: number } = {}) => {
+    const qs = Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== null && v !== "")
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+      .join("&");
+    return request(`/api/v1/prescriptions?${qs}`);
+  },
+  getPrescription: (id: string) => request(`/api/v1/prescriptions/${id}`),
 };

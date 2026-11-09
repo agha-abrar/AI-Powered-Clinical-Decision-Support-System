@@ -48,7 +48,13 @@ async function upsertUser(
   const passwordHash = await argon2.hash(DEV_PASSWORD, { type: argon2.argon2id });
   const user = await prisma.user.upsert({
     where: { email },
-    update: {},
+    update: {
+      passwordHash,
+      status: "ACTIVE",
+      passwordChangeRequired: true,
+      failedLoginCount: 0,
+      lockedUntil: null,
+    },
     create: {
       email,
       username,
